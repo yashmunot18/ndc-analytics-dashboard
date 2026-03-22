@@ -16,26 +16,45 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📊 NDC Diagnostics | Performance Dashboard")
-st.write("Upload your `Final_Cleaned_NDC_Data.csv` to generate the interactive analytics.")
+st.write("Upload your cleaned data (CSV or Excel) to generate interactive analytics.")
 
 # ==========================================
-# 2. DATA INGESTION
+# 2. CACHED DATA LOADING (SPEEDS UP BIG FILES)
 # ==========================================
-uploaded_file = st.file_uploader("Upload Cleaned CSV", type=['csv'])
+@st.cache_data
+def load_data(file):
+    if file.name.endswith('.csv'):
+        df = pd.read_csv(file)
+    else:
+        df = pd.read_excel(file, engine='openpyxl')
+    df.columns = df.columns.str.strip()  # Remove any leading/trailing spaces
+    return df
+
+# ==========================================
+# 3. DATA INGESTION
+# ==========================================
+uploaded_file = st.file_uploader("Upload Cleaned Data (CSV or Excel)", type=['csv', 'xlsx'])
 
 if uploaded_file:
     with st.spinner("Loading analytics engine..."):
-        df = pd.read_csv(uploaded_file)
-        
-        # Ensure correct data types
+        df = load_data(uploaded_file)
+
+        # Validate required columns
+        required_cols = ['Net', 'RegnDateTime', 'Final_Category', 'Final_Referrer_Name']
+        missing = [col for col in required_cols if col not in df.columns]
+        if missing:
+            st.error(f"Missing required columns: {missing}")
+            st.stop()
+
+        # Data type cleaning
         df['Net'] = pd.to_numeric(df['Net'], errors='coerce').fillna(0)
         df['RegnDateTime'] = pd.to_datetime(df['RegnDateTime'], errors='coerce')
         df['Date'] = df['RegnDateTime'].dt.date
-        
+
     st.markdown("---")
 
     # ==========================================
-    # 3. GLOBAL FILTERS (SIDEBAR)
+    # 4. GLOBAL FILTERS (SIDEBAR)
     # ==========================================
     st.sidebar.header("Filter Analytics")
     
@@ -55,7 +74,7 @@ if uploaded_file:
         filtered_df = filtered_df[filtered_df['Final_Category'] == selected_category]
 
     # ==========================================
-    # 4. KPI CARDS
+    # 5. KPI CARDS
     # ==========================================
     total_rev = filtered_df['Net'].sum()
     total_vol = len(filtered_df)
@@ -69,7 +88,7 @@ if uploaded_file:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ==========================================
-    # 5. CHARTS ROW 1
+    # 6. CHARTS ROW 1
     # ==========================================
     col_chart1, col_chart2 = st.columns([1, 2])
     
@@ -90,7 +109,7 @@ if uploaded_file:
         st.plotly_chart(fig_trend, use_container_width=True)
 
     # ==========================================
-    # 6. CHARTS ROW 2
+    # 7. CHARTS ROW 2
     # ==========================================
     col_chart3, col_chart4 = st.columns(2)
     
@@ -115,7 +134,7 @@ if uploaded_file:
         st.plotly_chart(fig_test, use_container_width=True)
 
     # ==========================================
-    # 7. LEADERBOARD TABLE
+    # 8. LEADERBOARD TABLE
     # ==========================================
     st.markdown("---")
     st.subheader("🏆 Referrer Leaderboard")
@@ -136,4 +155,4 @@ if uploaded_file:
     st.dataframe(display_df, use_container_width=True, height=400)
 
 else:
-    st.info("Awaiting file upload. Please drop your Cleaned CSV in the box above.")
+    st.info("Awaiting file upload. Please drop your cleaned CSV or Excel file in the box above.")
